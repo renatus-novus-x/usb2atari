@@ -1,8 +1,10 @@
 [![windows](https://github.com/renatus-novus-x/usb2atari/workflows/windows/badge.svg)](https://github.com/renatus-novus-x/usb2atari/actions?query=workflow%3Awindows)
+[![macos](https://github.com/renatus-novus-x/usb2atari/workflows/macos/badge.svg)](https://github.com/renatus-novus-x/usb2atari/actions?query=workflow%3Amacos)
+[![ubuntu](https://github.com/renatus-novus-x/usb2atari/workflows/ubuntu/badge.svg)](https://github.com/renatus-novus-x/usb2atari/actions?query=workflow%3Aubuntu)
 
 # usb2atari
 
-USB gamepad ¨ (PC) ¨ UART/FT245RL ¨ ATARI 9-pin controller bridge for MSX/X68000 (compatible joystick port)
+USB gamepad -> (PC) -> UART/FT245RL -> ATARI 9-pin controller bridge for MSX/X68000 (compatible joystick port)
 
 This project reads input from USB controllers (or keyboard) on a PC, encodes it as a compact 6-bit digital state, and sends it over UART (via FT245RL) to a small adapter that outputs ATARI 9-pin joystick signals. It is intended to control retro machines that accept ATARI-style controllers.
 
