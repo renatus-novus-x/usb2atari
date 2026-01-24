@@ -2,6 +2,8 @@
 [![macos](https://github.com/renatus-novus-x/usb2atari/workflows/macos/badge.svg)](https://github.com/renatus-novus-x/usb2atari/actions?query=workflow%3Amacos)
 [![ubuntu](https://github.com/renatus-novus-x/usb2atari/workflows/ubuntu/badge.svg)](https://github.com/renatus-novus-x/usb2atari/actions?query=workflow%3Aubuntu)
 
+<img src="https://raw.githubusercontent.com/renatus-novus-x/usb2atari/main/images/tether.png" alt="tether" title="tether">
+
 # usb2atari
 
 USB gamepad -> (PC) -> UART/FT245RL -> ATARI 9-pin controller bridge for MSX/X68000 (compatible joystick port)
