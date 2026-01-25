@@ -620,7 +620,7 @@ static void drawText(float x, float y, const char* s, unsigned char r=255, unsig
   // so we flip y around the framebuffer height after generating the vertices.
   const float y_down = (float)gFBH - y;
 
-  static alignas(16) unsigned char vbuf[64 * 1024];
+  alignas(16) static  unsigned char vbuf[64 * 1024];
   int quads = stb_easy_font_print(x, y_down, (char*)s, nullptr, vbuf, (int)sizeof(vbuf));
   const int verts = quads * 4;
 
