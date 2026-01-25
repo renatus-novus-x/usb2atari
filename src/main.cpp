@@ -35,6 +35,9 @@
 //     Link: glfw3.lib + opengl32.lib
 //     Ensure glfw3.dll is available beside exe or in PATH.
 
+#ifdef _WIN32
+  #define _CRT_SECURE_NO_WARNINGS
+#endif
 #include <GLFW/glfw3.h>
 
 #include <cstdio>
@@ -45,6 +48,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <cmath>
+
+#if defined(__APPLE__) || defined(MACOSX)
+  #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  #define GL_SILENCE_DEPRECATION
+#endif
+
 static int gFBW = 0;
 static int gFBH = 0;
 
@@ -713,17 +722,17 @@ static void drawPadDiagram(float x, float y, float w, float h, const Digital6& s
 static void drawUIOverlay(int w, int h) {
   char line[512];
 
-  drawText(20, h - 40, "GLFW 2x Virtual Pad (6-bit) - Fixed Pipeline", 240, 240, 240, 255);
+  drawText((float)20, (float)(h - 40), "GLFW 2x Virtual Pad (6-bit) - Fixed Pipeline", 240, 240, 240, 255);
 
   std::snprintf(line, sizeof(line),
     "Edit: pad=%d  target=%s  learning=%s  | F1/F2 pad, 1..6 target, SPACE learn, BACKSPACE clear, F5 save, F9 load",
     gEditPad + 1,
     vkeyName(gEditKey),
     gLearning ? "ON" : "OFF");
-  drawText(20, h - 60, line, 220, 220, 220, 255);
+  drawText((float)20, (float)(h - 60), line, 220, 220, 220, 255);
 
   if (gLearning) {
-    drawText(20, h - 80, "Learning armed: press a key, or press a pad button, or move an axis.", 255, 220, 120, 255);
+    drawText((float)20, (float)(h - 80), "Learning armed: press a key, or press a pad button, or move an axis.", 255, 220, 120, 255);
   }
 }
 
