@@ -620,13 +620,20 @@ static void drawText(float x, float y, const char* s, unsigned char r=255, unsig
   // so we flip y around the framebuffer height after generating the vertices.
   const float y_down = (float)gFBH - y;
 
-  alignas(16) static  unsigned char vbuf[64 * 1024];
+  // NOTE:
+  // Avoid `static alignas(16)` here because some GCC setups treat attributes
+  // in the middle of decl-specifiers as an error. Alignment is not required
+  // for stb_easy_font.
+  static unsigned char vbuf[64 * 1024];
   int quads = stb_easy_font_print(x, y_down, (char*)s, nullptr, vbuf, (int)sizeof(vbuf));
   const int verts = quads * 4;
 
+  // Flip Y safely without assuming float alignment or violating strict aliasing.
   for (int i = 0; i < verts; ++i) {
-    float* py = (float*)(vbuf + i * 16 + 4);
-    *py = (float)gFBH - *py;
+    float py = 0.0f;
+    std::memcpy(&py, vbuf + i * 16 + 4, sizeof(float));
+    py = (float)gFBH - py;
+    std::memcpy(vbuf + i * 16 + 4, &py, sizeof(float));
   }
 
   glColor4ub(r, g, b, a);
