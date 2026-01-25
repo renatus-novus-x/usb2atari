@@ -11,6 +11,10 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT u
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 set(CMAKE_SUPPRESS_REGENERATION true)
 
+target_include_directories(usb2atari PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+)
+
 if(MSVC)
   add_definitions(-D_UNICODE -DUNICODE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest")

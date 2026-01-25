@@ -45,96 +45,19 @@
 #include <algorithm>
 #include <cstdint>
 #include <cmath>
+static int gFBW = 0;
+static int gFBH = 0;
 
 // -----------------------------------------------------------------------------
-// Minimal text rendering: stb_easy_font (public domain) - embedded
-// Renders ASCII text as triangles/quads; works fine with fixed pipeline.
+// Text rendering: stb_easy_font (ASCII-only; no textures; renders quads).
+// Vendor file: third_party/stb/stb_easy_font.h (public domain / MIT).
+//
+// stb_easy_font uses y increasing downward. This program uses a y-up
+// orthographic projection for the fixed pipeline UI, so drawText() flips
+// y coordinates in the generated vertex buffer.
 // -----------------------------------------------------------------------------
-static int stb_easy_font_width(const char* text);
-static int stb_easy_font_height(const char* text);
-static int stb_easy_font_print(float x, float y, const char* text, const unsigned char* color, void* vertex_buffer, int vbuf_size);
+#include "stb_easy_font.h"
 
-// stb_easy_font implementation (trimmed single-file drop-in)
-#define STB_EASY_FONT_IMPLEMENTATION
-#ifdef STB_EASY_FONT_IMPLEMENTATION
-static unsigned int stb_easy_font_charinfo[96] = {0};
-
-static int stb_easy_font_width(const char* text) {
-  int w = 0, max_w = 0;
-  while (*text) {
-    if (*text == '\n') {
-      max_w = std::max(max_w, w);
-      w = 0;
-    } else {
-      w += 8;
-    }
-    ++text;
-  }
-  return std::max(max_w, w);
-}
-static int stb_easy_font_height(const char* text) {
-  int h = 1;
-  while (*text) {
-    if (*text == '\n') ++h;
-    ++text;
-  }
-  return h * 14;
-}
-
-struct stb_easy_font_vertex {
-  float x, y;
-  unsigned char c[4];
-};
-
-static int stb_easy_font_print(float x, float y, const char* text, const unsigned char* color, void* vertex_buffer, int vbuf_size) {
-  stb_easy_font_vertex* v = (stb_easy_font_vertex*)vertex_buffer;
-  int max_verts = vbuf_size / (int)sizeof(stb_easy_font_vertex);
-  int num_verts = 0;
-
-  float start_x = x;
-  while (*text) {
-    unsigned char ch = (unsigned char)*text++;
-    if (ch == '\n') {
-      y -= 14.0f;
-      x = start_x;
-      continue;
-    }
-    if (ch < 32 || ch >= 128) {
-      x += 8.0f;
-      continue;
-    }
-
-//    unsigned int ci = stb_easy_font_charinfo[ch - 32];
-    // Treat all printable chars as a simple 7x11 box (cheap but good enough).
-    // For our debug UI, this is sufficient.
-    float x0 = x;
-    float y0 = y;
-    float x1 = x + 7.0f;
-    float y1 = y + 11.0f;
-
-    //(void)ci;
-
-    if (num_verts + 6 > max_verts) break;
-
-    auto put = [&](float px, float py) {
-      v[num_verts].x = px;
-      v[num_verts].y = py;
-      v[num_verts].c[0] = color ? color[0] : 255;
-      v[num_verts].c[1] = color ? color[1] : 255;
-      v[num_verts].c[2] = color ? color[2] : 255;
-      v[num_verts].c[3] = color ? color[3] : 255;
-      ++num_verts;
-    };
-
-    // Two triangles for a filled rectangle "glyph"
-    put(x0, y0); put(x1, y0); put(x1, y1);
-    put(x0, y0); put(x1, y1); put(x0, y1);
-
-    x += 8.0f;
-  }
-  return num_verts;
-}
-#endif
 
 // -----------------------------------------------------------------------------
 // Input system
@@ -647,6 +570,8 @@ static bool loadMappings() {
 // Rendering (fixed pipeline)
 // -----------------------------------------------------------------------------
 static void setOrtho(int w, int h) {
+  gFBW = w;
+  gFBH = h;
   glViewport(0, 0, w, h);
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
@@ -689,24 +614,28 @@ static void drawCircle(float cx, float cy, float r, bool filled) {
 }
 
 static void drawText(float x, float y, const char* s, unsigned char r=255, unsigned char g=255, unsigned char b=255, unsigned char a=255) {
-  unsigned char col[4] = {r,g,b,a};
+  if (!s || !*s) return;
 
-  // stb_easy_font uses y increasing downward traditionally; we use y-up coordinates.
-  // We'll just place text with our coordinate system; it will still be readable as blocks.
-  // If you want proper glyph shapes, swap in a real bitmap font later.
-  static unsigned char vbuf[64 * 1024];
-  int n = stb_easy_font_print(x, y, s, col, vbuf, (int)sizeof(vbuf));
+  // stb_easy_font expects y to increase downward. We render with y-up coordinates,
+  // so we flip y around the framebuffer height after generating the vertices.
+  const float y_down = (float)gFBH - y;
 
+  static alignas(16) unsigned char vbuf[64 * 1024];
+  int quads = stb_easy_font_print(x, y_down, (char*)s, nullptr, vbuf, (int)sizeof(vbuf));
+  const int verts = quads * 4;
+
+  for (int i = 0; i < verts; ++i) {
+    float* py = (float*)(vbuf + i * 16 + 4);
+    *py = (float)gFBH - *py;
+  }
+
+  glColor4ub(r, g, b, a);
   glEnableClientState(GL_VERTEX_ARRAY);
-  glEnableClientState(GL_COLOR_ARRAY);
-
-  glVertexPointer(2, GL_FLOAT, sizeof(stb_easy_font_vertex), (char*)vbuf + 0);
-  glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(stb_easy_font_vertex), (char*)vbuf + 8);
-  glDrawArrays(GL_TRIANGLES, 0, n);
-
-  glDisableClientState(GL_COLOR_ARRAY);
+  glVertexPointer(2, GL_FLOAT, 16, vbuf);
+  glDrawArrays(GL_QUADS, 0, verts);
   glDisableClientState(GL_VERTEX_ARRAY);
 }
+
 
 static void drawPadDiagram(float x, float y, float w, float h, const Digital6& st, const VirtualPad& pad, int padIndex, bool selected) {
   // Body
