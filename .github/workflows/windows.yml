@@ -24,6 +24,6 @@ jobs:
       run: |
         mkdir build
         cd  build
-        cmake ../ -G "Visual Studio 17" -A x64 -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+        cmake ../ -G "Visual Studio 17" -A x64 -DFTDI_D2XX_ROOT="../third_party/ftdi/windows" -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
         cmake --build . --target ALL_BUILD --config Release
         cmake --build . --target ALL_BUILD --config Debug

@@ -43,4 +43,47 @@ endif()
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 
-target_link_libraries(usb2atari ${OPENGL_LIBRARIES} glfw)
+# User can pass: -DFTDI_D2XX_ROOT=/path/to/d2xx
+set(FTDI_D2XX_ROOT "" CACHE PATH "Path to FTDI D2XX (contains ftd2xx.h and libraries)")
+
+find_path(FTD2XX_INCLUDE_DIR
+  NAMES ftd2xx.h
+  HINTS ${FTDI_D2XX_ROOT} ENV FTDI_D2XX_ROOT
+  PATH_SUFFIXES include
+)
+
+find_library(FTD2XX_LIBRARY
+  NAMES ftd2xx libftd2xx
+  HINTS ${FTDI_D2XX_ROOT} ENV FTDI_D2XX_ROOT
+  PATH_SUFFIXES lib lib64 amd64 i386
+)
+
+if(NOT FTD2XX_INCLUDE_DIR OR NOT FTD2XX_LIBRARY)
+  message(FATAL_ERROR
+    "FTDI D2XX not found.\n"
+    "Set -DFTDI_D2XX_ROOT to the extracted D2XX package directory.\n"
+    "Need: ftd2xx.h and (ftd2xx.lib or libftd2xx.*)"
+  )
+endif()
+
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+#  add_definitions(-std=gnu++17)
+  set(CMAKE_OSX_ARCHITECTURES "x86_64")
+endif()
+
+target_include_directories(usb2atari PRIVATE ${FTD2XX_INCLUDE_DIR})
+target_link_libraries(usb2atari ${OPENGL_LIBRARIES} glfw ${FTD2XX_LIBRARY})
+
+# Linux often needs these when linking proprietary .so
+if(UNIX AND NOT APPLE)
+  find_package(Threads REQUIRED)
+  target_link_libraries(usb2atari PRIVATE Threads::Threads)
+  find_library(DL_LIB dl)
+  if(DL_LIB)
+    target_link_libraries(usb2atari PRIVATE ${DL_LIB})
+  endif()
+  find_library(RT_LIB rt)
+  if(RT_LIB)
+    target_link_libraries(usb2atari PRIVATE ${RT_LIB})
+  endif()
+endif()
