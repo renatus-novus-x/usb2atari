@@ -2,6 +2,8 @@
 [![macos](https://github.com/renatus-novus-x/usb2atari/workflows/macos/badge.svg)](https://github.com/renatus-novus-x/usb2atari/actions?query=workflow%3Amacos)
 [![ubuntu](https://github.com/renatus-novus-x/usb2atari/workflows/ubuntu/badge.svg)](https://github.com/renatus-novus-x/usb2atari/actions?query=workflow%3Aubuntu)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/renatus-novus-x/usb2atari)
+
 <img src="https://raw.githubusercontent.com/renatus-novus-x/usb2atari/main/images/tether.png" alt="tether" title="tether">
 
 # usb2atari
