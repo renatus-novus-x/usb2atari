@@ -11,10 +11,6 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT u
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release")
 set(CMAKE_SUPPRESS_REGENERATION true)
 
-target_include_directories(usb2atari PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
-)
-
 if(MSVC)
   add_definitions(-D_UNICODE -DUNICODE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest")
@@ -27,6 +23,11 @@ if(MSVC)
     CMAKE_C_FLAGS
     CMAKE_C_FLAGS_DEBUG
     CMAKE_C_FLAGS_RELEASE
+  )
+  add_custom_command(
+    TARGET ${PROJECT_NAME}
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_SOURCE_DIR}/bin"
   )
 endif(MSVC)
 
@@ -71,7 +72,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   set(CMAKE_OSX_ARCHITECTURES "x86_64")
 endif()
 
-target_include_directories(usb2atari PRIVATE ${FTD2XX_INCLUDE_DIR})
+target_include_directories(usb2atari PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb ${FTD2XX_INCLUDE_DIR})
 target_link_libraries(usb2atari ${OPENGL_LIBRARIES} glfw ${FTD2XX_LIBRARY})
 
 # Linux often needs these when linking proprietary .so
