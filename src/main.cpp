@@ -40,6 +40,9 @@
 #endif
 #include <GLFW/glfw3.h>
 
+// FTDI D2XX (for FT245 bit-bang output)
+#include "ftd2xx.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -208,6 +211,121 @@ struct Digital6 {
     return v;
   }
 };
+
+
+#if 1
+// -----------------------------------------------------------------------------
+// FT245 bit-bang output (FTDI D2XX)
+// - Outputs 6 bits on D0..D5 (dir mask 0x3F).
+// - We use "active-low" encoding to match the user's examples:
+//     Idle:      111111 (0x3F)
+//     Up:        111110 (clear D0)
+//     Down:      111101 (clear D1)
+//     Left:      111011 (clear D2)
+//     Right:     110111 (clear D3)
+//     TriggerA:  101111 (clear D4)
+//     TriggerB:  011111 (clear D5)  // NOTE: user's message showed 101111 twice; assumed typo.
+//
+// If your hardware expects active-high, invert the bits before writing.
+// -----------------------------------------------------------------------------
+static bool ftOk(FT_STATUS st, const char* what) {
+  if (st == FT_OK) return true;
+  std::fprintf(stderr, "[ft245] %s failed: %d\n", what, (int)st);
+return false;
+}
+
+[[maybe_unused]] static void bits6ToString(uint8_t v, char out[7]) {
+  // Leftmost is D5, rightmost is D0.
+  for (int i = 5; i >= 0; --i) {
+    out[5 - i] = ((v >> i) & 1u) ? '1' : '0';
+  }
+  out[6] = '\0';
+}
+
+static uint8_t packBits6ActiveLow(const Digital6& d) {
+  uint8_t v = 0x3Fu; // 111111 (idle/high)
+  if (d.up)    v = (uint8_t)(v & ~(1u << 0)); // D0
+  if (d.down)  v = (uint8_t)(v & ~(1u << 1)); // D1
+  if (d.left)  v = (uint8_t)(v & ~(1u << 2)); // D2
+  if (d.right) v = (uint8_t)(v & ~(1u << 3)); // D3
+  if (d.b1)    v = (uint8_t)(v & ~(1u << 4)); // D4 (TriggerA / B1)
+  if (d.b2)    v = (uint8_t)(v & ~(1u << 5)); // D5 (TriggerB / B2)
+  return v;
+}
+
+class Ft245BitBang {
+ public:
+  bool open(int index) {
+    close();
+
+    FT_HANDLE h = nullptr;
+    FT_STATUS st = FT_Open(index, &h);
+    if (st != FT_OK || !h) {
+      std::fprintf(stderr, "[ft245] FT_Open(%d) failed: %d\n", index, (int)st);
+return false;
+    }
+
+    h_ = h;
+
+    ftOk(FT_ResetDevice(h_), "FT_ResetDevice");
+    ftOk(FT_Purge(h_, FT_PURGE_RX | FT_PURGE_TX), "FT_Purge");
+    ftOk(FT_SetBaudRate(h_, 115200), "FT_SetBaudRate");
+    ftOk(FT_SetLatencyTimer(h_, 2), "FT_SetLatencyTimer");
+
+    // D0..D5 outputs
+    const UCHAR dir_mask = 0x3F;
+    st = FT_SetBitMode(h_, dir_mask, 0x01); // 0x01 = async bit-bang
+    if (!ftOk(st, "FT_SetBitMode(ASYNC_BITBANG)")) {
+      close();
+      return false;
+    }
+
+    // Set idle (111111)
+    last_ = 0xFFu;
+    writeBits6(0x3Fu, /*force=*/true);
+    return true;
+  }
+
+  void close() {
+    if (!h_) return;
+
+    // Try to restore safe idle and disable bit-bang.
+    writeBits6(0x3Fu, /*force=*/true);
+    FT_SetBitMode(h_, 0x00, 0x00);
+    FT_Close(h_);
+    h_ = nullptr;
+    last_ = 0xFFu;
+  }
+
+  bool isOpen() const { return h_ != nullptr; }
+
+  bool writeBits6(uint8_t bits6, bool force = false) {
+    if (!h_) return false;
+
+    bits6 = (uint8_t)(bits6 & 0x3Fu);
+    if (!force && bits6 == last_) return true;
+
+    UCHAR out = (UCHAR)bits6;
+    DWORD written = 0;
+    FT_STATUS st = FT_Write(h_, &out, 1, &written);
+    if (st != FT_OK || written != 1) {
+      std::fprintf(stderr, "[ft245] FT_Write failed: st=%d written=%lu\n", (int)st, (unsigned long)written);
+      return false;
+    }
+
+    last_ = bits6;
+    return true;
+  }
+
+ private:
+  FT_HANDLE h_ = nullptr;
+  uint8_t last_ = 0xFFu;
+};
+
+static Ft245BitBang gFt245;
+#endif // USB2ATARI_ENABLE_FT245
+
+
 
 enum class VKey {
   Up = 0,
@@ -669,7 +787,7 @@ static void drawPadDiagram(float x, float y, float w, float h, const Digital6& s
   // D-pad area
   float dpx = x + w * 0.20f;
   float dpy = y + h * 0.50f;
-  float dsz = std::min(w, h) * 0.18f;
+  float dsz = (std::min)(w, h) * 0.18f;
 
   auto drawDir = [&](float cx, float cy, float ww, float hh, bool on, const char* label, const char* bindStr) {
     if (on) glColor3f(0.2f, 0.8f, 0.3f);
@@ -692,7 +810,7 @@ static void drawPadDiagram(float x, float y, float w, float h, const Digital6& s
   // Buttons area
   float bx = x + w * 0.70f;
   float by = y + h * 0.55f;
-  float br = std::min(w, h) * 0.06f;
+  float br = (std::min)(w, h) * 0.06f;
 
   auto drawBtn = [&](float cx, float cy, bool on, const char* label, const char* bindStr) {
     if (on) glColor3f(0.9f, 0.3f, 0.2f);
@@ -814,6 +932,17 @@ int main() {
   setDefaultBindings();
   loadMappings(); // if exists, override defaults
 
+
+#if 1
+  // Try to enable FT245 output (device index 0).
+  // If not present, we continue without FT245 output.
+  if (gFt245.open(0)) {
+    std::fprintf(stderr, "[ft245] enabled (index=0) idle=111111\n");
+  } else {
+    std::fprintf(stderr, "[ft245] disabled (open failed). Set -DFTDI_D2XX_ROOT=... and ensure drivers are installed.\n");
+  }
+#endif
+
   while (!glfwWindowShouldClose(w)) {
     glfwPollEvents();
 
@@ -829,6 +958,14 @@ int main() {
     // Sample pads
     Digital6 s0 = gPad[0].sample();
     Digital6 s1 = gPad[1].sample();
+
+#if 1
+    // Drive FT245 D0..D5 with 6-bit active-low pattern (VPad1)
+    if (gFt245.isOpen()) {
+      uint8_t bits6 = packBits6ActiveLow(s0);
+      gFt245.writeBits6(bits6);
+    }
+#endif
 
     // Render
     int fbw = 0, fbh = 0;
@@ -858,6 +995,9 @@ int main() {
     updateKeyPrev();
   }
 
+#if 1
+  gFt245.close();
+#endif
   glfwDestroyWindow(w);
   glfwTerminate();
   return 0;
